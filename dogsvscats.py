@@ -16,11 +16,11 @@ def get_batch(size, dataset='train', path='train'):
     targets = []
     data_folder = 'data-{}'.format(IMG_SIZE)
     if dataset == 'train':
-        data_range = (1, 7501)
+        data_range = (1, 7500)
     if dataset == 'test':
-        data_range = (7501, 8001)
+        data_range = (7500, 8000)
     if dataset == 'validation':
-        data_range = (10001, 12501)
+        data_range = (10000, 12500)
     for _ in range(size):
         id = random.randint(0,1)
         type = 'dog' if id == 1 else 'cat'
