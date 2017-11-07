@@ -6,7 +6,8 @@ import tempfile
 import sys
 from tqdm import tqdm
 
-IMG_SIZE = 64
+IMG_SIZE = 128
+TF_IMG = False
 NB_PIX = IMG_SIZE * IMG_SIZE
 NB_CLASSES = 2
 NB_CHANNELS = 3
@@ -14,7 +15,7 @@ NB_CHANNELS = 3
 def get_batch(size, dataset='train', path='train'):
     features = []
     targets = []
-    data_folder = 'data-{}'.format(IMG_SIZE)
+    data_folder = 'data-{}{}'.format('tf-' if TF_IMG else '', IMG_SIZE)
     if dataset == 'train':
         data_range = (1, 7500)
     if dataset == 'test':
@@ -110,7 +111,7 @@ def init_graph_layers(x_image, training, keep_prob):
         activation=tf.nn.relu)
     pool3 = tf.layers.max_pooling2d(
         inputs=conv3, pool_size=[2, 2], strides=(2, 2))
-    flatten = tf.reshape(pool3, [-1, (IMG_SIZE / 8) * (IMG_SIZE / 8) * 64])
+    flatten = tf.reshape(pool3, [-1, int(IMG_SIZE / 8) * int(IMG_SIZE / 8) * 64])
 
     fc1 = tf.layers.dense(
         inputs=flatten,
@@ -238,6 +239,7 @@ with tf.name_scope('accuracy'):
 graph_location = './logs'
 print('Saving graph to: %s' % graph_location)
 tf.summary.scalar('accuracy', accuracy)
+tf.summary.scalar('loss', cross_entropy)
 merged = tf.summary.merge_all()
 writer = tf.summary.FileWriter(graph_location)
 
