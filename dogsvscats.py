@@ -11,6 +11,7 @@ TF_IMG = False
 NB_PIX = IMG_SIZE * IMG_SIZE
 NB_CLASSES = 2
 NB_CHANNELS = 3
+export_dir = './models'
 
 def get_batch(size, dataset='train', path='train'):
     features = []
@@ -35,7 +36,7 @@ def get_batch(size, dataset='train', path='train'):
 
 def init_graph_layers(x_image, training, keep_prob):
     initializer = tf.contrib.layers.xavier_initializer()
-    regularizer = tf.contrib.layers.l2_regularizer(0.001)
+    regularizer = tf.contrib.layers.l2_regularizer(1e-3)
 
     conv1 = tf.layers.conv2d(
         inputs=x_image,
@@ -243,11 +244,12 @@ tf.summary.scalar('loss', cross_entropy)
 merged = tf.summary.merge_all()
 writer = tf.summary.FileWriter(graph_location)
 
+builder = tf.saved_model.builder.SavedModelBuilder(export_dir)
 with tf.Session() as sess:
     writer.add_graph(sess.graph)
     sess.run(tf.global_variables_initializer())
     test_features, test_targets = get_batch(500, dataset='test')
-    for i in range(10000):
+    for i in range(100):
         batch_features, batch_targets = get_batch(40)
         for j in tqdm(range(25)):
             train_step.run(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 0.5, training: True})
@@ -256,3 +258,5 @@ with tf.Session() as sess:
         train_accuracy, loss = sess.run([accuracy, cross_entropy], feed_dict={features: test_features, targets: test_targets, keep_prob: 0.5, training: True})
         print('step {i}, cost: {loss} training accuracy {accuracy}'.format(i=i, loss=loss, accuracy=train_accuracy))
     print('test accuracy %g' % accuracy.eval(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 1, training: False}))
+    builder.add_meta_graph_and_variables(sess, ["tag"])
+    builder.save()
