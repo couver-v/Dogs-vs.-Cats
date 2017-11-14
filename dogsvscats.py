@@ -12,6 +12,7 @@ NB_PIX = IMG_SIZE * IMG_SIZE
 NB_CLASSES = 2
 NB_CHANNELS = 3
 export_dir = './models'
+train = False
 
 def get_batch(size, dataset='train', path='train'):
     features = []
@@ -217,46 +218,58 @@ def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
 
+if __name__ == '__main__':
 
-features = tf.placeholder(tf.float32, [None, IMG_SIZE, IMG_SIZE, NB_CHANNELS])
-targets = tf.placeholder(tf.float32, [None, NB_CLASSES])
-training = tf.placeholder(tf.bool)
-keep_prob = tf.placeholder(tf.float32)
+    if len(sys.argv) > 1:
+        export_dir = sys.argv[1]
+    if len(sys.argv) > 2:
+        if sys.argv[2] == 'train':
+            train = True
 
-preactivation = init_graph_layers(features, training, keep_prob)
+    features = tf.placeholder(tf.float32, [None, IMG_SIZE, IMG_SIZE, NB_CHANNELS])
+    targets = tf.placeholder(tf.float32, [None, NB_CLASSES])
+    training = tf.placeholder(tf.bool)
+    keep_prob = tf.placeholder(tf.float32)
 
-with tf.name_scope('loss'):
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=targets, logits=preactivation)
-    cross_entropy = tf.reduce_mean(cross_entropy)
+    preactivation = init_graph_layers(features, training, keep_prob)
 
-with tf.name_scope('adam_optimizer'):
-    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    with tf.name_scope('loss'):
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=targets, logits=preactivation)
+        cross_entropy = tf.reduce_mean(cross_entropy)
 
-with tf.name_scope('accuracy'):
-    correct_prediction = tf.equal(tf.argmax(preactivation, 1), tf.argmax(targets, 1))
-    correct_prediction = tf.cast(correct_prediction, tf.float32)
-    accuracy = tf.reduce_mean(correct_prediction)
+    with tf.name_scope('adam_optimizer'):
+        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
-graph_location = './logs'
-print('Saving graph to: %s' % graph_location)
-tf.summary.scalar('accuracy', accuracy)
-tf.summary.scalar('loss', cross_entropy)
-merged = tf.summary.merge_all()
-writer = tf.summary.FileWriter(graph_location)
+    with tf.name_scope('accuracy'):
+        correct_prediction = tf.equal(tf.argmax(preactivation, 1), tf.argmax(targets, 1))
+        correct_prediction = tf.cast(correct_prediction, tf.float32)
+        accuracy = tf.reduce_mean(correct_prediction)
 
-builder = tf.saved_model.builder.SavedModelBuilder(export_dir)
-with tf.Session() as sess:
-    writer.add_graph(sess.graph)
-    sess.run(tf.global_variables_initializer())
-    test_features, test_targets = get_batch(500, dataset='test')
-    for i in range(100):
-        batch_features, batch_targets = get_batch(40)
-        for j in tqdm(range(25)):
-            train_step.run(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 0.5, training: True})
-        summary = sess.run(merged, feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False})
-        writer.add_summary(summary, i)
-        train_accuracy, loss = sess.run([accuracy, cross_entropy], feed_dict={features: test_features, targets: test_targets, keep_prob: 0.5, training: True})
-        print('step {i}, cost: {loss} training accuracy {accuracy}'.format(i=i, loss=loss, accuracy=train_accuracy))
-    print('test accuracy %g' % accuracy.eval(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 1, training: False}))
-    builder.add_meta_graph_and_variables(sess, ["tag"])
-    builder.save()
+    graph_location = './logs'
+    print('Saving graph to: %s' % graph_location)
+    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('loss', cross_entropy)
+    merged = tf.summary.merge_all()
+    writer = tf.summary.FileWriter(graph_location)
+
+    with tf.Session() as sess:
+        writer.add_graph(sess.graph)
+        sess.run(tf.global_variables_initializer())
+        test_features, test_targets = get_batch(500, dataset='test')
+        
+        if train:
+            builder = tf.saved_model.builder.SavedModelBuilder(export_dir)
+            for i in range(100):
+                batch_features, batch_targets = get_batch(40)
+                for j in tqdm(range(25)):
+                    train_step.run(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 0.5, training: True})
+                summary = sess.run(merged, feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False})
+                writer.add_summary(summary, i)
+                train_accuracy, loss = sess.run([accuracy, cross_entropy], feed_dict={features: test_features, targets: test_targets, keep_prob: 0.5, training: True})
+                print('step {i}, cost: {loss} training accuracy {accuracy}'.format(i=i, loss=loss, accuracy=train_accuracy))
+            builder.add_meta_graph_and_variables(sess, ["tag"])
+            builder.save()
+        else:
+            tf.saved_model.loader.load(sess, ["tag"], export_dir)
+            print('test accuracy %g' % accuracy.eval(feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False}))
+
