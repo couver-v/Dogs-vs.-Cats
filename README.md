@@ -1,4 +1,4 @@
-# animal-classifier
+# Dogs vs. Cats
 
 ### Kaggle Challenge : Dogs vs. Cats
 https://www.kaggle.com/c/dogs-vs-cats
