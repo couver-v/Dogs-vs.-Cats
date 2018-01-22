@@ -3,7 +3,7 @@ from PIL import Image
 import numpy as np
 import random
 
-IMG_SIZE = int(64)
+IMG_SIZE = int(128)
 NB_PIX = IMG_SIZE * IMG_SIZE
 NB_CLASSES = int(2)
 NB_CHANNELS = int(3)
