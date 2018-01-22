@@ -3,6 +3,8 @@
 /train
 /test
 /archive
+/logs/*
+!/logs/gitkeep
 
 # Temp files
 *~

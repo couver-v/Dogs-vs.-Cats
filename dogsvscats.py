@@ -2,7 +2,6 @@ from PIL import Image
 import tensorflow as tf
 import numpy as np
 import random
-import tempfile
 import sys
 from tqdm import tqdm
 
@@ -11,10 +10,15 @@ TF_IMG = False
 NB_PIX = IMG_SIZE * IMG_SIZE
 NB_CLASSES = 2
 NB_CHANNELS = 3
-export_dir = './models'
-train = False
 
 def get_batch(size, dataset='train', path='train'):
+
+    """
+    return a random batch of length size
+    each contains a feature pixel array and a one hot vector target
+    from images in specified dataset
+    """
+
     features = []
     targets = []
     data_folder = 'data-{}{}'.format('tf-' if TF_IMG else '', IMG_SIZE)
@@ -33,9 +37,17 @@ def get_batch(size, dataset='train', path='train'):
         features.append(img)
         targets.append(np.eye(NB_CLASSES)[id])
     features = np.array(features)
+    targets = np.array(targets)
     return features, targets
 
 def init_graph_layers(x_image, training, keep_prob):
+
+    """
+    x_image: input tensor of shape (None, IMG_SIZE, IMG_SIZE, NB_CHANNELS)
+    training: bool who indicate the graph is used for training
+    keep_prob: float prop for drpout
+    """
+
     initializer = tf.contrib.layers.xavier_initializer()
     regularizer = tf.contrib.layers.l2_regularizer(1e-3)
 
@@ -49,7 +61,8 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv1.1')
     conv1 = tf.layers.conv2d(
         inputs=conv1,
         filters=32,
@@ -60,9 +73,10 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv1.2')
     pool1 = tf.layers.max_pooling2d(
-        inputs=conv1, pool_size=[2, 2], strides=(2, 2))
+        inputs=conv1, pool_size=[2, 2], strides=(2, 2), name='pool1')
     
     conv2 = tf.layers.conv2d(
         inputs=pool1,
@@ -74,7 +88,8 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv2.1')
     conv2 = tf.layers.conv2d(
         inputs=conv2,
         filters=64,
@@ -85,9 +100,10 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv2.2')
     pool2 = tf.layers.max_pooling2d(
-        inputs=conv2, pool_size=[2, 2], strides=(2, 2))
+        inputs=conv2, pool_size=[2, 2], strides=(2, 2), name='pool2')
 
     conv3 = tf.layers.conv2d(
         inputs=pool2,
@@ -99,7 +115,8 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv3.1')
     conv3 = tf.layers.conv2d(
         inputs=conv3,
         filters=64,
@@ -110,9 +127,10 @@ def init_graph_layers(x_image, training, keep_prob):
         use_bias=True,
         bias_initializer=initializer,
         bias_regularizer=regularizer,
-        activation=tf.nn.relu)
+        activation=tf.nn.relu,
+        name='conv3.2')
     pool3 = tf.layers.max_pooling2d(
-        inputs=conv3, pool_size=[2, 2], strides=(2, 2))
+        inputs=conv3, pool_size=[2, 2], strides=(2, 2), name='pool3')
     flatten = tf.reshape(pool3, [-1, int(IMG_SIZE / 8) * int(IMG_SIZE / 8) * 64])
 
     fc1 = tf.layers.dense(
@@ -123,11 +141,13 @@ def init_graph_layers(x_image, training, keep_prob):
         kernel_regularizer=regularizer,
         use_bias=True,
         bias_initializer=initializer,
-        bias_regularizer=regularizer)
+        bias_regularizer=regularizer,
+        name='fc1')
     fc1 = tf.layers.dropout(
         inputs=fc1,
         rate=keep_prob,
-        training=training)
+        training=training,
+        name='dropout1')
     fc2 = tf.layers.dense(
         inputs=fc1,
         units=256,
@@ -136,24 +156,31 @@ def init_graph_layers(x_image, training, keep_prob):
         kernel_regularizer=regularizer,
         use_bias=True,
         bias_initializer=initializer,
-        bias_regularizer=regularizer)
+        bias_regularizer=regularizer,
+        name='fc2')
     fc2 = tf.layers.dropout(
         inputs=fc2,
         rate=keep_prob,
-        training=training)
-    logits = tf.layers.dense(inputs=fc2, units=2)
+        training=training,
+        name='dropout2')
+    logits = tf.layers.dense(inputs=fc2, units=2, name='output')
 
     return logits
 
 def init_graph(x_image):
 
+    '''
+        x_image: input (None, IMG_SIZE, IMG_SIZE, NB_CHANNELS)
+        old graph => Not used anymore
+    '''
+
     with tf.name_scope('conv1'):
         W_conv1 = weight_variable([5, 5, NB_CHANNELS, 32])
         b_conv1 = bias_variable([32])
         h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-        # W_conv1 = weight_variable([5, 5, 32, 32])
-        # b_conv1 = bias_variable([32])
-        # h_conv1 = tf.nn.relu(conv2d(h_conv1, W_conv1) + b_conv1)
+        W_conv1 = weight_variable([5, 5, 32, 32])
+        b_conv1 = bias_variable([32])
+        h_conv1 = tf.nn.relu(conv2d(h_conv1, W_conv1) + b_conv1)
 
     with tf.name_scope('pool1'):
         h_pool1 = max_pool_2x2(h_conv1)
@@ -162,25 +189,24 @@ def init_graph(x_image):
         W_conv2 = weight_variable([5, 5, 32, 64])
         b_conv2 = bias_variable([64])
         h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-        # W_conv2 = weight_variable([5, 5, 64, 64])
-        # b_conv2 = bias_variable([64])
-        # h_conv2 = tf.nn.relu(conv2d(h_conv2, W_conv2) + b_conv2)
+        W_conv2 = weight_variable([5, 5, 64, 64])
+        b_conv2 = bias_variable([64])
+        h_conv2 = tf.nn.relu(conv2d(h_conv2, W_conv2) + b_conv2)
 
     with tf.name_scope('pool2'):
         h_pool2 = max_pool_2x2(tf.nn.relu(h_conv2))
 
-    # with tf.name_scope('conv3'):
-    #     W_conv3 = weight_variable([5, 5, 64, 64])
-    #     b_conv3 = bias_variable([64])
-    #     h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv2) + b_conv2)
-    #     # W_conv3 = weight_variable([5, 5, 64, 64])
-    #     # b_conv3 = bias_variable([64])
-    #     # h_conv3 = tf.nn.relu(conv2d(h_conv3, W_conv2) + b_conv2)
+    with tf.name_scope('conv3'):
+        W_conv3 = weight_variable([5, 5, 64, 64])
+        b_conv3 = bias_variable([64])
+        h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv2) + b_conv2)
+        W_conv3 = weight_variable([5, 5, 64, 64])
+        b_conv3 = bias_variable([64])
+        h_conv3 = tf.nn.relu(conv2d(h_conv3, W_conv2) + b_conv2)
 
-    # with tf.name_scope('pool3'):
-    #     h_pool3 = max_pool_2x2(h_conv3)
+    with tf.name_scope('pool3'):
+        h_pool3 = max_pool_2x2(h_conv3)
 
-    # print(h_pool2)
     with tf.name_scope('fc1'):
         length = (IMG_SIZE / 4) * (IMG_SIZE / 4) * 64
         W_fc1 = weight_variable([length, 1024])
@@ -220,12 +246,6 @@ def bias_variable(shape):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) > 1:
-        export_dir = sys.argv[1]
-    if len(sys.argv) > 2:
-        if sys.argv[2] == 'train':
-            train = True
-
     features = tf.placeholder(tf.float32, [None, IMG_SIZE, IMG_SIZE, NB_CHANNELS])
     targets = tf.placeholder(tf.float32, [None, NB_CLASSES])
     training = tf.placeholder(tf.bool)
@@ -256,20 +276,13 @@ if __name__ == '__main__':
         writer.add_graph(sess.graph)
         sess.run(tf.global_variables_initializer())
         test_features, test_targets = get_batch(500, dataset='test')
-        
-        if train:
-            builder = tf.saved_model.builder.SavedModelBuilder(export_dir)
-            for i in range(100):
+    
+        for i in range(100):
+            for j in tqdm(range(25)):
                 batch_features, batch_targets = get_batch(40)
-                for j in tqdm(range(25)):
-                    train_step.run(feed_dict={features: batch_features, targets: batch_targets, keep_prob: 0.5, training: True})
-                summary = sess.run(merged, feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False})
-                writer.add_summary(summary, i)
-                train_accuracy, loss = sess.run([accuracy, cross_entropy], feed_dict={features: test_features, targets: test_targets, keep_prob: 0.5, training: True})
-                print('step {i}, cost: {loss} training accuracy {accuracy}'.format(i=i, loss=loss, accuracy=train_accuracy))
-            builder.add_meta_graph_and_variables(sess, ["tag"])
-            builder.save()
-        else:
-            tf.saved_model.loader.load(sess, ["tag"], export_dir)
-            print('test accuracy %g' % accuracy.eval(feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False}))
+                sess.run(train_step, feed_dict={features: batch_features, targets: batch_targets, keep_prob: 0.5, training: True})
+            summary = sess.run(merged, feed_dict={features: test_features, targets: test_targets, keep_prob: 1, training: False})
+            writer.add_summary(summary, i)
+            train_accuracy, loss = sess.run([accuracy, cross_entropy], feed_dict={features: test_features, targets: test_targets, keep_prob: 0.5, training: True})
+            print('step {i}, cost: {loss} training accuracy {accuracy}'.format(i=i, loss=loss, accuracy=train_accuracy))
 
