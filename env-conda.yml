@@ -1,0 +1,7 @@
+name: tf
+dependencies:
+    - python==3.5.2
+    - pip:
+        - tensorflow
+        - tqdm
+        - Pillow
